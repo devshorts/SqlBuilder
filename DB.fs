@@ -5,10 +5,17 @@ open System.Data.SQLite
 open System.Data 
 open System.Data.Common
 
+let startText = ""
+
+let commitText = ""
+
 type SQLBuilder(conn: DbConnection, createTransaction) = 
     
     let getFields (reader: DbDataReader) = 
-        [| for i in 0 .. reader.FieldCount - 1 -> reader.[ i ] |]
+        [| for i in 0 .. reader.FieldCount - 1 -> 
+            let readerValue = reader.[ i ]
+            let readerName = reader.GetName(i)
+            (readerName, readerValue) |]
 
     do 
         conn.Open()
@@ -53,6 +60,7 @@ type Transaction(conn:IDbConnection) =
     member this.Bind(value, expr) = 
         if this.executeQuery value then
             expr()
+            true
         else 
             false
         
@@ -60,11 +68,11 @@ type Transaction(conn:IDbConnection) =
 
     member this.wrapInTransaction expr = 
             use trans = conn.BeginTransaction()
-            this.executeQuery @"// custom begin " |> ignore
+            this.executeQuery startText |> ignore
             try
                 let success = expr()
 
-                this.executeQuery @"// custom end" |> ignore
+                this.executeQuery commitText |> ignore
 
                 trans.Commit()
 
@@ -81,7 +89,7 @@ type Transaction(conn:IDbConnection) =
     member this.Delay expr = fun() -> expr()
                                 
 
-let connection = new SQLiteConnection((sprintf "Data Source = %s" @"C:\DB\db.dat"))
+let connection = new SQLiteConnection((sprintf "Data Source = %s" @"C:\db\db.dat"))
 
 let transaction = new Transaction(connection)
 
